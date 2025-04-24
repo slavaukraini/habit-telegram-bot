@@ -1,27 +1,35 @@
 
 import logging
+import os
 from telegram import Update, ReplyKeyboardMarkup
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes, MessageHandler, filters, CallbackContext
+from telegram.ext import (
+    ApplicationBuilder, CommandHandler, ContextTypes,
+    MessageHandler, filters
+)
+from apscheduler.schedulers.background import BackgroundScheduler
 from datetime import datetime
 import json
+import asyncio
 
-# Встановлення логування
+# Налаштування логування
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# Заміни на свій токен
-TOKEN = "7952224923:AAE6tWMZTQSrjz7Zj1dbCRki-Y0b3ZOQSCw"
+# Зчитування токена зі змінної середовища
+TOKEN = os.getenv("TOKEN")
 
-# Дані користувача (тестова реалізація в JSON)
 USER_DATA = {}
+SCHEDULED_USERS = set()
+
+keyboard = [["Медитація ✅", "Розтяжка ✅"],
+            ["Прокинувся до 7:00 🌅", "Куріння 🚬"]]
+reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
-    keyboard = [["Медитація ✅", "Розтяжка ✅"],
-                ["Прокинувся до 7:00 🌅", "Куріння 🚬"]]
-    reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyboard=True)
+    SCHEDULED_USERS.add(user.id)
     await update.message.reply_text(
         f"Привіт, {user.first_name}! Це твій трекер звичок 🌿
 
@@ -65,9 +73,31 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         USER_DATA[user_id][date_str]["smoking"] += int(msg)
         await update.message.reply_text(f"🚬 Занотував: {msg} сигарет")
 
-    # Зберегти у файл (можна змінити на базу)
     with open("user_data.json", "w") as f:
         json.dump(USER_DATA, f)
+
+async def send_reminders(application):
+    for user_id in SCHEDULED_USERS:
+        try:
+            await application.bot.send_message(
+                chat_id=user_id,
+                text="Доброго ранку 🌞
+Як почався день?
+
+🔘 Прокинувся до 7:00
+🔘 Розтяжка
+🔘 Медитація
+🔘 Курив? Скільки?",
+                reply_markup=reply_markup
+            )
+        except Exception as e:
+            logging.error(f"Не вдалося надіслати повідомлення {user_id}: {e}")
+
+def schedule_daily_job(application):
+    scheduler = BackgroundScheduler(timezone="Europe/Kyiv")
+    scheduler.add_job(lambda: asyncio.run(send_reminders(application)),
+                      trigger='cron', hour=8, minute=0)
+    scheduler.start()
 
 def main():
     app = ApplicationBuilder().token(TOKEN).build()
@@ -75,7 +105,9 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
-    print("Бот запущено...")
+    schedule_daily_job(app)
+
+    logging.info("Бот запущено з щоденним нагадуванням о 8:00...")
     app.run_polling()
 
 if __name__ == "__main__":
