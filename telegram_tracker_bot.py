@@ -11,15 +11,12 @@ from datetime import datetime
 import json
 import asyncio
 
-# Налаштування логування
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     level=logging.INFO
 )
 
-# Зчитування токена зі змінної середовища
 TOKEN = os.getenv("TOKEN")
-
 USER_DATA = {}
 SCHEDULED_USERS = set()
 
@@ -30,12 +27,8 @@ reply_markup = ReplyKeyboardMarkup(keyboard, one_time_keyboard=True, resize_keyb
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
     SCHEDULED_USERS.add(user.id)
-    await update.message.reply_text(
-        f"Привіт, {user.first_name}! Це твій трекер звичок 🌿
-
-Обери, що ти сьогодні вже зробив 👇",
-        reply_markup=reply_markup
-    )
+    msg = f"Привіт, {user.first_name}! Це твій трекер звичок 🌿\n\nОбери, що ти сьогодні вже зробив 👇"
+    await update.message.reply_text(msg, reply_markup=reply_markup)
 
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = str(update.effective_user.id)
@@ -81,13 +74,7 @@ async def send_reminders(application):
         try:
             await application.bot.send_message(
                 chat_id=user_id,
-                text="Доброго ранку 🌞
-Як почався день?
-
-🔘 Прокинувся до 7:00
-🔘 Розтяжка
-🔘 Медитація
-🔘 Курив? Скільки?",
+                text="Доброго ранку 🌞\nЯк почався день?\n\n🔘 Прокинувся до 7:00\n🔘 Розтяжка\n🔘 Медитація\n🔘 Курив? Скільки?",
                 reply_markup=reply_markup
             )
         except Exception as e:
@@ -100,6 +87,7 @@ def schedule_daily_job(application):
     scheduler.start()
 
 def main():
+    print("🚀 Бот запускається...")  # Видно у Railway
     app = ApplicationBuilder().token(TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
@@ -107,7 +95,7 @@ def main():
 
     schedule_daily_job(app)
 
-    logging.info("Бот запущено з щоденним нагадуванням о 8:00...")
+    print("✅ Бот запущено з щоденним нагадуванням о 8:00...")  # Railway побачить це
     app.run_polling()
 
 if __name__ == "__main__":
